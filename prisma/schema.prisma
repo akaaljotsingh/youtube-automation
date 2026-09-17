@@ -1,0 +1,134 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model Channel {
+  id               String   @id @default(cuid())
+  key              String   @unique
+  name             String
+  youtubeChannelId String?
+  niche            String
+  language         String   @default("en")
+  timezone         String   @default("UTC")
+  publishHour      Int      @default(18)
+  config           Json
+  createdAt        DateTime @default(now())
+  videos           Video[]
+}
+
+enum VideoStatus {
+  IDEA
+  RESEARCHING
+  RESEARCH_READY
+  SCRIPTING
+  SCRIPT_READY
+  FACT_CHECKING
+  SCENES_READY
+  GENERATING_ASSETS
+  VOICE_READY
+  ASSEMBLING
+  QA
+  READY
+  UPLOADING
+  SCHEDULED
+  PUBLISHED
+  BLOCKED
+  FAILED
+}
+
+model Video {
+  id              String      @id @default(cuid())
+  channelId       String
+  channel         Channel     @relation(fields: [channelId], references: [id])
+  topic           String
+  title           String?
+  status          VideoStatus @default(IDEA)
+  script          Json?
+  research        Json?
+  factCheck       Json?
+  description     String?
+  tags            String[]
+  durationSeconds Int?
+  videoPath       String?
+  thumbnailPath   String?
+  youtubeVideoId  String?
+  scheduledAt     DateTime?
+  publishedAt     DateTime?
+  error           String?
+  createdAt       DateTime    @default(now())
+  updatedAt       DateTime    @updatedAt
+  scenes          Scene[]
+  jobs            Job[]
+  sources         Source[]
+
+  @@index([channelId, status])
+}
+
+model Scene {
+  id         String  @id @default(cuid())
+  videoId    String
+  video      Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  index      Int
+  duration   Int
+  narration  String
+  visualKind String // "veo" | "image" | "chart"
+  prompt     String
+  camera     String?
+  style      String?
+  assetPath  String?
+  status     String  @default("PENDING")
+  error      String?
+  attempts   Int     @default(0)
+
+  @@unique([videoId, index])
+}
+
+model Source {
+  id         String  @id @default(cuid())
+  videoId    String
+  video      Video   @relation(fields: [videoId], references: [id], onDelete: Cascade)
+  url        String
+  title      String?
+  publisher  String?
+  claim      String?
+  sourceText String?
+}
+
+enum JobStatus {
+  PENDING
+  RUNNING
+  COMPLETE
+  FAILED
+}
+
+model Job {
+  id          String    @id @default(cuid())
+  videoId     String?
+  video       Video?    @relation(fields: [videoId], references: [id], onDelete: SetNull)
+  type        String
+  payload     Json?
+  status      JobStatus @default(PENDING)
+  attempts    Int       @default(0)
+  maxAttempts Int       @default(3)
+  error       String?
+  startedAt   DateTime?
+  completedAt DateTime?
+  createdAt   DateTime  @default(now())
+
+  @@index([status, type])
+}
+
+model PromptVersion {
+  id        String   @id @default(cuid())
+  name      String
+  version   String
+  content   String
+  createdAt DateTime @default(now())
+
+  @@unique([name, version])
+}
