@@ -7,9 +7,13 @@ export const envSchema = z.object({
   DATABASE_URL: z.string().url(),
   REDIS_URL: z.string().url(),
 
-  GCP_PROJECT_ID: z.string(),
-  GCS_BUCKET: z.string(),
-  GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+  // GCP_PROJECT_ID: z.string(),
+  // GCS_BUCKET: z.string(),
+  // GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
+
+GCP_PROJECT_ID: z.string().default('local-dev'),
+GCS_BUCKET: z.string().optional().default(''),
+GOOGLE_APPLICATION_CREDENTIALS: z.string().optional(),
 
   GEMINI_API_KEY: z.string().min(1),
 GEMINI_TEXT_MODEL: z.string().default('gemini-3.8-flash'),
@@ -19,9 +23,14 @@ VEO_MODEL: z.string().default('veo-3.1-fast-generate-preview'),
 TTS_MODEL: z.string().default('gemini-3.1-flash-tts-preview'),
   VEO_RESOLUTION: z.enum(['720p', '1080p']).default('720p'),
 
-  YOUTUBE_CLIENT_ID: z.string().min(1),
-  YOUTUBE_CLIENT_SECRET: z.string().min(1),
-  YOUTUBE_REFRESH_TOKEN: z.string().min(1),
+  // YOUTUBE_CLIENT_ID: z.string().min(1),
+  // YOUTUBE_CLIENT_SECRET: z.string().min(1),
+  // YOUTUBE_REFRESH_TOKEN: z.string().min(1),
+
+  // making IDs opotional for now, since we can use the bot to publish videos instead of a user account
+YOUTUBE_CLIENT_ID: z.string().optional().default(''),
+YOUTUBE_CLIENT_SECRET: z.string().optional().default(''),
+YOUTUBE_REFRESH_TOKEN: z.string().optional().default(''),
 
   TELEGRAM_BOT_TOKEN: z.string().optional(),
   TELEGRAM_CHAT_ID: z.string().optional(),

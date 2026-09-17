@@ -168,12 +168,34 @@ export class PipelineService {
       });
 
       // 12. Upload to GCS
-      const remoteBase = `videos/${new Date().toISOString().slice(0, 10)}/${video.id}`;
-      const remoteVideo = await this.gcs.upload(finalPath, `${remoteBase}/final.mp4`, 'video/mp4');
-      const remoteThumb = await this.gcs.upload(thumbPath, `${remoteBase}/thumb.png`, 'image/png');
+      // const remoteBase = `videos/${new Date().toISOString().slice(0, 10)}/${video.id}`;
+      // const remoteVideo = await this.gcs.upload(finalPath, `${remoteBase}/final.mp4`, 'video/mp4');
+      // const remoteThumb = await this.gcs.upload(thumbPath, `${remoteBase}/thumb.png`, 'image/png');
 
-      if (dryRun) {
-        logger.info({ videoId: video.id, remoteVideo, remoteThumb }, 'DRY_RUN — skipping YouTube upload');
+      // 12. Upload to GCS (optional)
+      let remoteVideo = '';
+      let remoteThumb = '';
+      if (this.gcs.isEnabled()) {
+        const remoteBase = `videos/${new Date().toISOString().slice(0, 10)}/${video.id}`;
+        remoteVideo = await this.gcs.upload(finalPath, `${remoteBase}/final.mp4`, 'video/mp4');
+        remoteThumb = await this.gcs.upload(thumbPath, `${remoteBase}/thumb.png`, 'image/png');
+      } else {
+        logger.info({ videoId: video.id }, 'GCS not configured — keeping files locally');
+      }
+
+      // Skip YouTube if DRY_RUN or if credentials are missing
+      if (dryRun || !this.youtube.isEnabled()) {
+        logger.info(
+          { videoId: video.id, remoteVideo, remoteThumb, dryRun, ytEnabled: this.youtube.isEnabled() },
+          'skipping YouTube upload',
+        );
+        await this.prisma.video.update({
+          where: { id: video.id },
+          data: {
+            status: VideoStatus.READY,
+            error: this.youtube.isEnabled() ? null : 'YouTube credentials not configured',
+          },
+        });
         return video.id;
       }
 
@@ -207,6 +229,7 @@ export class PipelineService {
 
       logger.info({ videoId: video.id, ytId }, 'pipeline completed');
       return video.id;
+
     } catch (err) {
       const msg = (err as Error).message;
       logger.error({ videoId: video.id, err: msg }, 'pipeline failed');

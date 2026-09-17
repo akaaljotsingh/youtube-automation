@@ -18,23 +18,46 @@ export interface UploadInput {
 
 @Injectable()
 export class YoutubeService {
-  private readonly yt: youtube_v3.Youtube;
+  private readonly yt: youtube_v3.Youtube | null;
+  private readonly enabled: boolean;
 
   constructor(private readonly cfg: ConfigService) {
-    const auth = new google.auth.OAuth2(
-      cfg.getOrThrow<string>('YOUTUBE_CLIENT_ID'),
-      cfg.getOrThrow<string>('YOUTUBE_CLIENT_SECRET'),
-    );
-    auth.setCredentials({ refresh_token: cfg.getOrThrow<string>('YOUTUBE_REFRESH_TOKEN') });
+    const clientId = cfg.get<string>('YOUTUBE_CLIENT_ID') ?? '';
+    const clientSecret = cfg.get<string>('YOUTUBE_CLIENT_SECRET') ?? '';
+    const refreshToken = cfg.get<string>('YOUTUBE_REFRESH_TOKEN') ?? '';
+
+    if (!clientId || !clientSecret || !refreshToken) {
+      logger.warn(
+        'YouTube credentials not configured — uploads disabled. Set YOUTUBE_CLIENT_ID/SECRET/REFRESH_TOKEN to enable.',
+      );
+      this.yt = null;
+      this.enabled = false;
+      return;
+    }
+
+    const auth = new google.auth.OAuth2(clientId, clientSecret);
+    auth.setCredentials({ refresh_token: refreshToken });
     this.yt = google.youtube({ version: 'v3', auth });
+    this.enabled = true;
+    logger.info('YouTube client initialized');
+  }
+
+  isEnabled(): boolean {
+    return this.enabled;
   }
 
   async upload(input: UploadInput): Promise<string> {
+    if (!this.yt) {
+      throw new Error(
+        'YouTube upload requested but credentials are missing. Set YOUTUBE_CLIENT_ID, YOUTUBE_CLIENT_SECRET, YOUTUBE_REFRESH_TOKEN in .env',
+      );
+    }
+
     const size = statSync(input.videoPath).size;
 
     const res = await withRetry(
       () =>
-        this.yt.videos.insert({
+        this.yt!.videos.insert({
           part: ['snippet', 'status'],
           requestBody: {
             snippet: {
@@ -70,9 +93,10 @@ export class YoutubeService {
   }
 
   async setThumbnail(videoId: string, thumbnailPath: string): Promise<void> {
+    if (!this.yt) throw new Error('YouTube not configured');
     await withRetry(
       () =>
-        this.yt.thumbnails.set({
+        this.yt!.thumbnails.set({
           videoId,
           media: { body: createReadStream(thumbnailPath) },
         }),
@@ -81,7 +105,11 @@ export class YoutubeService {
   }
 
   async getStatus(videoId: string): Promise<{ status: string; privacyStatus: string }> {
-    const res = await this.yt.videos.list({ part: ['status', 'processingDetails'], id: [videoId] });
+    if (!this.yt) throw new Error('YouTube not configured');
+    const res = await this.yt.videos.list({
+      part: ['status', 'processingDetails'],
+      id: [videoId],
+    });
     const v = res.data.items?.[0];
     return {
       status: v?.processingDetails?.processingStatus ?? 'unknown',
@@ -90,6 +118,7 @@ export class YoutubeService {
   }
 
   async schedule(videoId: string, publishAt: Date): Promise<void> {
+    if (!this.yt) throw new Error('YouTube not configured');
     await this.yt.videos.update({
       part: ['status'],
       requestBody: {
